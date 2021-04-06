@@ -2,6 +2,7 @@
 library(mlbench)
 library(caret)
 library(dplyr)
+library(corrplot)
 
 #set the seed
 set.seed(729)
@@ -18,14 +19,29 @@ str(b.less_Nas)
 b.less <- Filter(var, b.less_Nas[,c(-1, -2, -3, -53, - 54)])
 str(b.less)
 
-#Check how much of the Mpesa columns are 0
+#Remove columns with excess 0s (mor than 80%)
+b.less0 <- b.less[ , colSums((b.less==0)) < (nrow(b.less)*0.8)]
+str(b.less0)
 
+#Remove columns with excess 1s (mor than 80%)
+b.less1 <- b.less0[ , colSums((b.less0==1)) < (nrow(b.less0)*0.8)]
+str(b.less1)
 
 #calculate the correlation matrix
-corr_matrix <- cor(b.less_Nas[,c(-1, -2, -3, -53, - 54)])
-# summarize the correlation matrix
-print(correlationMatrix)
-# find attributes that are highly corrected (ideally >0.75)
-highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.5)
-# print indexes of highly correlated attributes
-print(highlyCorrelated)
+corr_matrix <- cor(b.less1)
+
+#print summary
+print(corr_matrix)
+
+#plot correlation matrix
+corrplot(corr_matrix, method="number")
+
+#which variables which are highly correlated:
+highly_corr <- findCorrelation(corr_matrix, cutoff=0.75)
+
+#print which ones are highly correlated variables
+print(highly_corr)
+
+#Remove the highly correlated ones:
+b.lesscorr <- b.less1[-highly_corr]
+str(b.lesscorr)
