@@ -5,10 +5,11 @@ library(dplyr)
 library(corrplot)
 library(tidyverse)
 
+
 #set the seed
 set.seed(729)
 
-# Read in the full dataset with all 75 predictor variables and 1143 objects
+# Read in the full dataset with all 75 variables and 1143 objects
 busara.data = read.csv("Full_Data.csv", header=TRUE)
 str(busara.data)
 
