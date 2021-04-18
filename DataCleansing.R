@@ -73,46 +73,71 @@ exploratorydataset[duplicated(exploratorydataset$surveyid)]
 #There are no duplicates, note more than one person can be 
 # from the same village so it is inappropriate to check for duplicates there
 
+
+####################################################################################################
+#                         DATA CLEANSING: Rounding and Grouping                              
+####################################################################################################
+
 library(dplyr)
 
 #Additionally some values in the age column are not whole numbers and those values
 # after the decimal place will be removed
 exploratorydataset <- exploratorydataset %>% mutate_at(vars(age), funs(signif(., 2)))
 
-#Finally we need to round monetary values in the following columns to decimal places
+#We need to round monetary values in the following columns to decimal places
 exploratorydataset <- as.data.frame(lapply(exploratorydataset, function(x) if(is.numeric(x)) round(x, 2) else x))
 exploratorydataset
 
-#exploratorydataset <- exploratorydataset %>% mutate_at(vars(starts_with("cons_nondurable")), funs(round(., 2)))
-#vars(cons_nondurable, asset_livestock,asset_durable,asset_phone,asset_savings,asset_land_owned_total,cons_allfood,cons_ownfood,cons_ed)
+#I would like to group the children and number of children in a household and hh size
+#3 levels: 0-2 is 1 [Below average], 3-5 [Average] is 2, 6+ is 3 [Above Average]
+summary(exploratorydataset$children)
+unique(exploratorydataset$children)
+
+#3 levels: 0-2 is 1 [Below average], 2-4 [Average] is 2, 5+ is 3 [Above Average]
+summary(exploratorydataset$hh_children)
+unique(exploratorydataset$hh_children)
+
+#3 levels: 0-4 is 1 [Below average], 5-7 [Average] is 2, 8+ is 3 [Above Average]
+summary(exploratorydataset$hhsize)
+unique(exploratorydataset$hhsize)
+
+
+#Function to group the data and add new factor values as above:
+function.group <- function(dataframe, column, upperbnd1, upperbnd2) 
+{
+  for(i in 1:nrow(dataframe))
+  {
+    if(dataframe[i,column] <= upperbnd1)
+    {
+      dataframe[i,column] = 1
+    }
+    else if(dataframe[i,column] > upperbnd1 && dataframe[i,column] <= upperbnd2)
+    {
+      dataframe[i,column] = 2
+    }
+    else
+    {
+      dataframe[i,column] = 3
+    }
+  }
+  return(dataframe[,column])
+}
+
+#Change children
+exploratorydataset$children <- function.group(exploratorydataset, 3, 2, 5)
+
+#Change hh_children
+exploratorydataset$hh_children <- function.group(exploratorydataset, 6, 2, 4)
+
+#Change hhsize
+exploratorydataset$hhsize <- function.group(exploratorydataset, 4, 4, 7)
+
+str(exploratorydataset)
 
 # This dataset will now be brought forward to the exploratory analysis
 # and further modified
 write.csv(exploratorydataset, "DataToAnalyse.csv")
 
 # I have decided to keep female respondents and remove the date and day of week
-# variables as these surveys were once off
-
-
-#calculate the correlation matrix
-#corr_matrix <- cor(b.less1)
-
-#print summary
-#print(corr_matrix)
-
-#plot correlation matrix
-#corrplot(corr_matrix, method="number")
-
-#which variables which are highly correlated:
-#highly_corr <- findCorrelation(corr_matrix, cutoff=0.75)
-
-#print which ones are highly correlated variables
-#print(highly_corr)
-
-#Remove the highly correlated ones:
-#b.lesscorr <- b.less1[-highly_corr]
-#str(b.lesscorr)
-
-#corrplot(cor(b.lesscorr), method="number")
-#pairs(b.less1)
+# variables as these surveys, to my understanding were once off an not recurring
 
