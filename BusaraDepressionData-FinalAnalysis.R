@@ -247,7 +247,41 @@ randIndex(clust1_label, pam.3$clustering)
 library(mclust)
 fitM <- Mclust(dep.dataset.log)
 
-#It suggests the model EEv, 3
+#It suggests the model EEv with 3 clusters
 
 fitM
 plot(fitM)
+
+
+############################################################################################
+#             D - Analyse Hierarchical Clustering Solution
+############################################################################################
+
+#I've chosen Hclustering to be the best in this case and will analyse that cluster to see what 
+# insights I can get about depression and different variables
+
+h1<- which(clust1_label == 1)
+summary(dep.dataset.log[h1,])
+str(og.dataset[h1,])
+#The amount who are depressed is 65 vs 269 not depressed (24%)
+table(og.dataset[h1,24])
+
+h2<- which(clust1_label == 2)
+summary(dep.dataset.log[h2,])
+str(og.dataset[h2,])
+#The amount who are depressed is 52 vs 314 not depressed (16.6%%)
+table(og.dataset[h2,24])
+
+h3<- which(clust1_label == 3)
+summary(dep.dataset.log[h3,])
+str(og.dataset[h3,])
+#The amount who are depressed is 42 vs 241 not depressed (20.7%)
+table(og.dataset[h3,24])
+
+#Cluster 1 and 3 have higher levels of depression than the overal average of 16.8%
+# Of the total sample population
+
+#This is an analysis of their differences:
+plot_num(dep.dataset.log[h1,])
+plot_num(dep.dataset.log[h2,])
+plot_num(dep.dataset.log[h3,])
