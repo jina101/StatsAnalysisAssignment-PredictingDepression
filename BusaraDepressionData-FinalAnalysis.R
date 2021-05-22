@@ -285,3 +285,24 @@ table(og.dataset[h3,24])
 plot_num(dep.dataset.log[h1,])
 plot_num(dep.dataset.log[h2,])
 plot_num(dep.dataset.log[h3,])
+###############################################################################################
+
+
+
+###### GLMs ###########
+
+# Split data into training, test and validation sets 60/20/20
+splitSample <- sample(1:3, size=nrow(dep.dataset.log), prob=c(0.7,0.15,0.15), replace = TRUE)
+train <- dep.dataset.log[splitSample==1,]
+test <- dep.dataset.log[splitSample==2,]
+validate <- dep.dataset.log[splitSample==3,]
+
+#add the depressed column to the dataset to be used in the analysis
+depression.dataset <- cbind(dep.dataset.log, og.dataset$depressed)
+
+#Regsubsets to find the important variables: BIC
+library(leaps)
+plot(regsubsets(og.dataset$depressed ~ ., data = depression.dataset, method = "exhaustive", nbest = 1))
+
+#AIC requires more variables
+step(lm(og.dataset$depressed ~ ., data = depression.dataset), trace = F, direction = "forward")
