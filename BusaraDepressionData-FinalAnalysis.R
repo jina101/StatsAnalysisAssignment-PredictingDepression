@@ -463,11 +463,11 @@ accuracy.m34
 
 # Conclusion: this is not a very good model and in order to get higer levels of
 # true positives, we need to accept more false positives but to an extent that seems
-# quite unreasonable. The has better accuracy as thresholds of 0.5 and higher
+# quite unreasonable. The has better accuracy at thresholds of 0.5 and higher
 # but this is only good for saying that people do not have depression. Otherwise,
 # it typically misclassifies actually depressed people. And that is not the aim of
 # this model. We want to be able to accurately diagnose depressed people
-# The model with all parameters performs marginally better
+# The model with all parameters included performs marginally better
 
 # Going to test the model on test data
 lreg.predict1.test <- predict(lreg.train1, test, type="response")
@@ -484,5 +484,130 @@ accuracy.test2
 
 
 ########################################################################################################
-
+library(glmnet)
 # Lasso, Ridge and Elastic Net: After this I'm going to alter the dataset again
+
+#create a predictor matrix and also an outcome variable for each of the above sets
+train$depressed <- as.factor(train$depressed)
+str(train)
+#Rename levels
+levels(train$depressed) <- c("no", "yes")
+
+
+train.X <- data.matrix(within(train, rm(depressed)))
+val.X <- data.matrix(within(validate, rm(depressed)))
+test.X <- data.matrix(within(test, rm(depressed)))
+train.y <- train$depressed
+val.y <- validate$depressed
+test.y <- test$depressed
+
+# RIDGE AND LASSO
+#Tune the lamda for both the ridge and lasso methods using cross-validation
+cvridge <- cv.glmnet(train.X, train.y, family="binomial", alpha=0, nlambda=20, type.measure="auc")
+cvlasso <- cv.glmnet(train.X, train.y, family="binomial", alpha=1, nlambda=20, type.measure="auc")
+
+#create the final models using the best lamda from above
+ridgemod <- glmnet(train.X, train.y, family="binomial", alpha = 0, lambda = cvridge$lambda.1se)
+lassomod <- glmnet(train.X, train.y, family="binomial", alpha = 1, lambda = cvlasso$lambda.1se)
+
+#see the details of the models
+ridgemod
+lassomod
+
+##############################################################################################################
+
+#ELASTIC NET
+#This section pre-standardises the predictor matrix
+train.stdX <-scale(train.X)
+
+library(caret) # load the caret package
+
+# Set the control for training
+train_control <- trainControl(method = "repeatedcv",
+                              number = 5,
+                              repeats = 5,
+                              search = "random",
+                              classProbs = TRUE,
+                              summaryFunction = twoClassSummary,
+                              verboseIter = TRUE)
+
+# Start training the model and look for the best lamda and alpha
+elastic_grid <- train(train.stdX, train.y,
+                      method = "glmnet",
+                      tuneLength = 25,
+                      trControl = train_control,
+                      metric= "ROC",
+                      family = "binomial",
+                      standardize = FALSE)
+
+#use the final and best lamda and alpha for the model
+elasticmod <- glmnet(train.X, train.y, family="binomial", alpha = elastic_grid$bestTune$alpha, lambda = elastic_grid$bestTune$lambda)
+elasticmod
+
+#Can view the final betas for each of the models:
+Intercepts <- cbind(ridgemod$a0,lassomod$a0,elasticmod$a0)
+Coefs <- cbind(ridgemod$beta,lassomod$beta, elasticmod$beta)
+Betas <-rbind(Intercepts, Coefs)
+rownames(Betas)[1] = "(Intercept)"
+colnames(Betas) = c("Ridge", "Lasso", "Elastic Net")
+Betas
+
+#####################################################################################################
+ # start Properly Building the models and using it to predict
+#####################################################################################################
+#use the models for predicting
+
+library(pROC) #load pROC library
+
+fit.ridge <- predict(ridgemod, val.X, type="response")
+
+#fit lasso and elastic models
+fit.lasso <- predict(lassomod, val.X, type="response")
+fit.elastic <- predict(elasticmod, val.X, type="response")
+
+#get the best thresholds
+thresh.r <- coords(roc(val.y, as.vector(fit.ridge)), "best", best.method="youden", transpose=TRUE, ret="threshold")
+thresh.l <- coords(roc(val.y, as.vector(fit.lasso)), "best", best.method="youden", transpose=TRUE, ret="threshold")
+thresh.e <- coords(roc(val.y, as.vector(fit.elastic)), "best", best.method="youden", transpose=TRUE, ret="threshold")
+
+#use the test data for predicting
+final.r <- predict(ridgemod, test.X, type="response")
+final.l <- predict(lassomod, test.X, type="response")
+final.e <- predict(elasticmod, test.X, type="response")
+
+
+#use a confusion matrix to analyse how well each model has performed
+class.ridge <- as.factor(ifelse(final.r <= thresh.r, 0, 1))
+table(class.ridge, test.y)
+
+class.lasso <- as.factor(ifelse(final.l <= thresh.l, 0, 1))
+table(class.lasso, test.y)
+
+class.elastic <- as.factor(ifelse(final.e <= thresh.e, 0, 1))
+table(class.elastic, test.y)
+
+#None of these models perform well at all. There are
+# far more false negatives than there are true positives
+
+#Use AIC to check models:
+tLL <- lassomod$nulldev - deviance(lassomod)
+k <- lassomod$df
+n <- lassomod$nobs
+AICc <- -tLL+2*k+2*k*(k+1)/(n-k-1)
+AICc
+
+tL <- ridgemod$nulldev - deviance(ridgemod)
+kl <- ridgemod$df
+nl <- ridgemod$nobs
+AICcr <- -tL+2*kl+2*kl*(kl+1)/(nl-kl-1)
+AICcr
+
+eTLL <- elasticmod$nulldev - deviance(elasticmod)
+kle <- elasticmod$df
+nle <- elasticmod$nobs
+AICce <- -eTLL+2*kle+2*kle*(kle+1)/(nle-kle-1)
+AICce
+
+#According to AIC ridge performs best (it has the higher accuracy rate)
+# but like the others, it still performs very poorly in correctly 
+# classifying people with depression
