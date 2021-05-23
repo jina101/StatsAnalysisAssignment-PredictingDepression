@@ -556,10 +556,35 @@ Betas
  # start Properly Building the models and using it to predict
 #####################################################################################################
 #use the models for predicting
+fit.ridge <- predict(ridgemod, val.X, type="response")
+
+#Use the accuracy method to visualise
+cutoffs <- seq(min(fit.ridge),max(fit.ridge),(max(fit.ridge)-min(fit.ridge))/100)
+accuracy <- NULL
+
+for (i in seq(along = cutoffs)){
+  prediction <- ifelse(fit.ridge >= cutoffs[i], 1, 0) #Predicting for cut-off
+  accuracy <- c(accuracy,length(which(val.y ==prediction))/length(prediction)*100)
+}
+
+plot(cutoffs, accuracy, pch =19,type='l',col= "steelblue",
+     main ="Logistic Regression", xlab="Cutoff Level", ylab = "Accuracy %")
+
+
+cutoffs <- seq(min(fit.ridge),max(fit.ridge),(max(fit.ridge)-min(fit.ridge))/100)
+accuracy <- NULL
+
+for (i in seq(along = cutoffs)){
+  prediction <- ifelse(fit.ridge >= cutoffs[i], 1, 0) #Predicting for cut-off
+  accuracy <- c(accuracy,length(which(val.y ==prediction))/length(prediction)*100)
+}
+
+plot(cutoffs, accuracy, pch =19,type='l',col= "steelblue",
+     main ="Logistic Regression", xlab="Cutoff Level", ylab = "Accuracy %")
+
+#######################################################################################################
 
 library(pROC) #load pROC library
-
-fit.ridge <- predict(ridgemod, val.X, type="response")
 
 #fit lasso and elastic models
 fit.lasso <- predict(lassomod, val.X, type="response")
