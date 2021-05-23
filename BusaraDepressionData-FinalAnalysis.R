@@ -299,6 +299,8 @@ colnames(depression.dataset)[19] <- "depressed"
 data <- sort(sample(nrow(depression.dataset), nrow(depression.dataset)*.6))
 train<-depression.dataset[data,]
 
+table(train$depressed) #17% depressed as in the overall sample, good representation in the training set
+
 #Split remaining 40% of data into test and validation
 remaining_data<-depression.dataset[-data,]
 
