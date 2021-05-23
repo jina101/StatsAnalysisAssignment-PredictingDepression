@@ -290,19 +290,158 @@ plot_num(dep.dataset.log[h3,])
 
 
 ###### GLMs ###########
-
-# Split data into training, test and validation sets 60/20/20
-splitSample <- sample(1:3, size=nrow(dep.dataset.log), prob=c(0.7,0.15,0.15), replace = TRUE)
-train <- dep.dataset.log[splitSample==1,]
-test <- dep.dataset.log[splitSample==2,]
-validate <- dep.dataset.log[splitSample==3,]
-
 #add the depressed column to the dataset to be used in the analysis
+set.seed(729)
 depression.dataset <- cbind(dep.dataset.log, og.dataset$depressed)
+colnames(depression.dataset)[19] <- "depressed"
 
+#Split the data into train, test and validation sets (60%, 20%, 20%) respectively
+data <- sort(sample(nrow(depression.dataset), nrow(depression.dataset)*.6))
+train<-depression.dataset[data,]
+
+#Split remaining 40% of data into test and validation
+remaining_data<-depression.dataset[-data,]
+
+#use sampling without replacement
+data <- sort(sample(nrow(remaining_data), nrow(remaining_data)*.5))
+test<-remaining_data[data,]
+validate<- remaining_data[-data,]
+
+####################################################################################
+#                   GLM 1: FEATURE SELECTION with Transformed Data
+####################################################################################
+
+# Part 1:
+# I'm going to run logistic regression on the training dataset and see
+# which variables are statistically significant
+train.glm <- glm(depressed ~., data=train, family = binomial)
+plot(train.glm)
+summary(train.glm)
+BIC(train.glm)
+
+#Only asset_durable is statistically significant. Education, cons_ownfood
+#cons_ed and ent_farmexpenses are not statistically significant but have 
+#p values lower than 0.1. Perhaps these variables are more important when 
+#it comes to predictions. The AIC is 638.84. BIC is 733.9547
+
+
+#Part 2:
 #Regsubsets to find the important variables: BIC
 library(leaps)
-plot(regsubsets(og.dataset$depressed ~ ., data = depression.dataset, method = "exhaustive", nbest = 1))
+plot(regsubsets(depressed ~., data = train, method = "exhaustive", nbest = 1))
+#For the lowest BIc (6.3), only the intercept and edu is included, however this would
+# make the model too simple in my opinion (I believe economic factors relating to current
+# personal financial and home situations have to have some sort of effect on depression)
+# the variables included in the highest bic are similar to the statistically
+# significant ones above and the ones in the backward stepwise selection process below
 
-#AIC requires more variables
-step(lm(og.dataset$depressed ~ ., data = depression.dataset), trace = F, direction = "forward")
+#Part 3:
+#Forward: AIC requires more variables
+step.f <- (step(lm(depressed ~ ., data = train), trace = F, direction = "forward"))
+summary(step.f)
+AIC(step.f) #AIC is 618.5599
+BIC(step.f) #BIC is 718.2071
+
+#Backward
+step.b <- (step(lm(depressed ~ ., data = train), trace = F, direction = "backward"))
+summary(step.b)
+AIC(step.b) #AIC is 597.542
+BIC(step.b) #BIC is 633.7782
+
+# Only education, asset_durable, cons_allfood, cons_ownfood, cons_ed are statistically
+# significant. ent_farmexpenses was also included. 
+
+# I will take two models (logistic regression) and compare them. The first one is with variables selected 
+# bystep.b (it has similar statistically significant variables as output by the logistic regression
+# model on all variables). The second is from reg_subsets with only the intercept and edcucation
+
+############################################################################################################
+#RUN Logistic Regression on datasets
+
+lreg.train1 <- glm(depressed ~ edu + asset_durable + cons_allfood + cons_ownfood + cons_ed + ent_farmexpenses, data = train, family = binomial)
+
+lreg.train2 <- glm(depressed ~ edu, data = train, family = binomial)
+
+#Now use the above model to make some predictions
+lreg.predict1 = predict(lreg.train1, type="response")
+
+lreg.predict2 = predict(lreg.train2, type="response")
+
+#Now evaluate performance using ROC curves and AUC
+library(ROCR)
+# ROC and Performance function
+
+ROCRpred1 = prediction(lreg.predict1, train$depressed)
+ROCRperf1 = performance(ROCRpred1, "tpr", "fpr")
+
+ROCRpred2 = prediction(lreg.predict2, train$depressed)
+ROCRperf2 = performance(ROCRpred2, "tpr", "fpr")
+
+# Plot ROC curve
+plot(ROCRperf1)
+plot(ROCRperf1, colorize=TRUE)
+plot(ROCRperf1, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+plot(ROCRperf2)
+plot(ROCRperf2, colorize=TRUE)
+plot(ROCRperf2, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+#The first model seems to have a higher AUC over the second which seems too simplistic and
+# very close to simply random classification
+# Either, way, there won't be high levels of accuracy in these models
+
+#Logically, I believe increasing the amount of true positives is the best approach 
+#It would be more detrimental for someone with depression to go undiagnosed and untreated
+# However, I don't want there to be too many false positives. I will try 0.2, 0.15 and 0.1
+# and test their accuracy
+
+# I will test each threshold and choose the best one
+new.lreg1.predict <- ifelse(lreg.predict1 > 0.2,1,0)
+cont.mat <- table(train$depressed, new.lreg1.predict)
+accuracy <- (sum(diag(cont.mat))/sum(cont.mat))
+accuracy
+
+new.lreg1.predict2 <- ifelse(lreg.predict1 > 0.15,1,0)
+cont.mat2 <- table(train$depressed, new.lreg1.predict2)
+accuracy2 <- (sum(diag(cont.mat2))/sum(cont.mat2))
+accuracy2
+
+new.lreg1.predict3 <- ifelse(lreg.predict1 > 0.1,1,0)
+cont.mat3 <- table(train$depressed, new.lreg1.predict3)
+accuracy3 <- (sum(diag(cont.mat3))/sum(cont.mat3))
+accuracy3
+
+
+new.lreg1.predict4 <- ifelse(lreg.predict1 > 0.5,1,0)
+cont.mat4 <- table(train$depressed, new.lreg1.predict4)
+accuracy4 <- (sum(diag(cont.mat4))/sum(cont.mat4))
+accuracy4
+
+
+#The highest accuracy is for a threshold of 0.5 and it decreases as 
+# the threshold lowers. Now to check if lowering the threshold actually
+# increases the number of true positives:
+cont.mat #lots of incorrect predictions for depression: 115 fp, 52 true positive
+cont.mat2 #lots of incorrect predictions for depression: 310 fp vs 86 true positive
+cont.mat3 #lots of incorrect predictions for depression: 496 fp vs 107 true positive
+cont.mat4 #lots of incorrect predictions for depression:  3 fp vs 1 true positive
+
+# Conclusion: this is not a very good model and in order to get higer levels of
+# true positives, we need to accept more false positives but to an extent that seems
+# quite unreasonable. The has better accuracy as thresholds of 0.5 and higher
+# but this is only good for saying that people do not have depression. Otherwise,
+# it typically misclassifies actually depressed people. And that is not the aim of
+# this model. We want to be able to accurately diagnose depressed people
+
+# Going to test the model on test data
+lreg.predict1.test <- predict(lreg.train1, test, type="response")
+cont.mat.test <- table(test$depressed, lreg.predict1.test>0.5)
+accuracy.test <- (sum(diag(cont.mat.test))/sum(cont.mat.test)) 
+accuracy.test
+
+lreg.predict1.test2 <- predict(lreg.train1, test, type="response")
+cont.mat.test2 <- table(test$depressed, lreg.predict1.test2>0.15)
+accuracy.test2 <- (sum(diag(cont.mat.test2))/sum(cont.mat.test2)) 
+accuracy.test2
+
+#Performs poorly on the test dataset as well
