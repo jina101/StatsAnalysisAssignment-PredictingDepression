@@ -351,9 +351,10 @@ BIC(step.b) #BIC is 633.7782
 # Only education, asset_durable, cons_allfood, cons_ownfood, cons_ed are statistically
 # significant. ent_farmexpenses was also included. 
 
-# I will take two models (logistic regression) and compare them. The first one is with variables selected 
+# I will take three models (logistic regression) and compare them. The first one is with variables selected 
 # bystep.b (it has similar statistically significant variables as output by the logistic regression
-# model on all variables). The second is from reg_subsets with only the intercept and edcucation
+# model on all variables). The second is from reg_subsets with only the intercept and edcucation. The final will
+# will include all variables
 
 ############################################################################################################
 #RUN Logistic Regression on datasets
@@ -362,10 +363,14 @@ lreg.train1 <- glm(depressed ~ edu + asset_durable + cons_allfood + cons_ownfood
 
 lreg.train2 <- glm(depressed ~ edu, data = train, family = binomial)
 
+lreg.train3 <- glm(depressed ~., data = train, family = binomial)
+
 #Now use the above model to make some predictions
 lreg.predict1 = predict(lreg.train1, type="response")
 
 lreg.predict2 = predict(lreg.train2, type="response")
+
+lreg.predict3 = predict(lreg.train3, type="response")
 
 #Now evaluate performance using ROC curves and AUC
 library(ROCR)
@@ -377,6 +382,9 @@ ROCRperf1 = performance(ROCRpred1, "tpr", "fpr")
 ROCRpred2 = prediction(lreg.predict2, train$depressed)
 ROCRperf2 = performance(ROCRpred2, "tpr", "fpr")
 
+ROCRpred3 = prediction(lreg.predict3, train$depressed)
+ROCRperf3 = performance(ROCRpred3, "tpr", "fpr")
+
 # Plot ROC curve
 plot(ROCRperf1)
 plot(ROCRperf1, colorize=TRUE)
@@ -386,9 +394,13 @@ plot(ROCRperf2)
 plot(ROCRperf2, colorize=TRUE)
 plot(ROCRperf2, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
 
-#The first model seems to have a higher AUC over the second which seems too simplistic and
-# very close to simply random classification
-# Either, way, there won't be high levels of accuracy in these models
+plot(ROCRperf3)
+plot(ROCRperf3, colorize=TRUE)
+plot(ROCRperf3, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+#The first model and last model seem to have a higher AUCs over the second which seems too simplistic and
+# very close to simply random classification in terms of its ROC curve shape
+# Either, way, there won't be high levels of accuracy in any of these models for correctly identifying depression
 
 #Logically, I believe increasing the amount of true positives is the best approach 
 #It would be more detrimental for someone with depression to go undiagnosed and untreated
@@ -426,12 +438,36 @@ cont.mat2 #lots of incorrect predictions for depression: 310 fp vs 86 true posit
 cont.mat3 #lots of incorrect predictions for depression: 496 fp vs 107 true positive
 cont.mat4 #lots of incorrect predictions for depression:  3 fp vs 1 true positive
 
+
+#Now with model 3
+new.lreg3.predict <- ifelse(lreg.predict3 > 0.2,1,0)
+cont3.mat <- table(train$depressed, new.lreg3.predict)
+accuracy.m3 <- (sum(diag(cont3.mat))/sum(cont3.mat))
+accuracy.m3
+
+new.lreg3.predict2 <- ifelse(lreg.predict3 > 0.15,1,0) #294 fn vs 90 tp, performs the best
+cont3.mat2 <- table(train$depressed, new.lreg3.predict2)
+accuracy.m32 <- (sum(diag(cont3.mat2))/sum(cont3.mat2))
+accuracy.m32
+
+new.lreg3.predict3 <- ifelse(lreg.predict3 > 0.1,1,0)
+cont3.mat3 <- table(train$depressed, new.lreg3.predict3)
+accuracy.m33 <- (sum(diag(cont3.mat3))/sum(cont3.mat3))
+accuracy.m33
+
+new.lreg3.predict4 <- ifelse(lreg.predict3 > 0.5,1,0)
+cont3.mat4 <- table(train$depressed, new.lreg3.predict4)
+accuracy.m34 <- (sum(diag(cont3.mat4))/sum(cont3.mat4))
+accuracy.m34
+
+
 # Conclusion: this is not a very good model and in order to get higer levels of
 # true positives, we need to accept more false positives but to an extent that seems
 # quite unreasonable. The has better accuracy as thresholds of 0.5 and higher
 # but this is only good for saying that people do not have depression. Otherwise,
 # it typically misclassifies actually depressed people. And that is not the aim of
 # this model. We want to be able to accurately diagnose depressed people
+# The model with all parameters performs marginally better
 
 # Going to test the model on test data
 lreg.predict1.test <- predict(lreg.train1, test, type="response")
@@ -445,3 +481,8 @@ accuracy.test2 <- (sum(diag(cont.mat.test2))/sum(cont.mat.test2))
 accuracy.test2
 
 #Performs poorly on the test dataset as well
+
+
+########################################################################################################
+
+# Lasso, Ridge and Elastic Net: After this I'm going to alter the dataset again
