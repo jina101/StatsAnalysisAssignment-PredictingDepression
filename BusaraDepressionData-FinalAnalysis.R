@@ -1,4 +1,32 @@
-# Load the Necessary Packages
+#########################################################################################
+################### Sec.1 FINAL CODE FOR THE REPORT AND ANALYSIS ########################
+
+#majority of the code developed with help from previous labs, lectures and rhelp files
+
+#This section includes the code that I want to refer back to when doing the
+#report. It starts with a little bit of data preparation, Cluster Analysis, PCA
+# and GLMs. The data is not modified too  much beyond a log transform to normalise,
+# and removing some more variables with excess 0s. 
+
+# In other scripts, further modifcations to the data were made and tested to see if there would be any
+# sort of improvement. This included grouping age into different levels, 
+# combining all asset, income and expedeniture variables into one each and developing
+# a training and test set which included a higher percentage of people with 
+# depression to see if a more accurate model that could correctly classify 
+# depression could be made. Unfortunately, none of these attempts yielded
+# an improved model but they are evidence to support that these algorithms and 
+# linear models are not overly effective for this dataset. The code is included after
+# this section to highlight the process and my thinking.
+
+# In conclusion, whilst clear clusters are formed and the GLMs have an accuracy of
+# 80% overall - these don't provide any type of insight into who has depression and 
+# who doesn't. No one variable has an obvious nor strong impact on depresion being a 
+# positve outcome, hence the ability to correctly classify non depressed patients, but
+# not depressed ones.
+
+
+# Load some packages. Further packages are loaded within the code
+# in the necessary section
 library(cluster)
 library(dplyr)
 library(tidyverse)
@@ -16,12 +44,11 @@ set.seed(7920)
 #Load in the data
 og.dataset = read.csv("FinalDataset.csv", header=TRUE)
 str(og.dataset)
-summary(og.dataset)
+summary(og.dataset) #print summary statistics
 
-#how many are depressed
-table(og.dataset$depressed)
+#check how how many are depressed
+table(og.dataset$depressed) #Only 193 are depressed in the sample (approx 17%)
 
-#Only 193 are depressed
 #################################################################
 #             DATA PREPARATION AND TRANSFORMATION
 #################################################################
@@ -59,6 +86,7 @@ str(dep.dataset[, c(skewed_variables)])
 
 #############################################################################################
 
+#log transform
 dep.dataset.log <- cbind(dep.dataset[,-c(skewed_variables)],log((dep.dataset[, c(skewed_variables)]) + 1))
 plot_num(dep.dataset.log)
 str(dep.dataset.log)
@@ -66,9 +94,10 @@ str(dep.dataset.log)
 #ent_animalstockrevenue
 
 # I'm going to create datasets with just the people who are depressed and those who are not and see how
-# their asset_savings and ent_animalstockrevenue etcis distributed, if there's no difference
+# their asset_savings and ent_animalstockrevenue etc is distributed, if there's no difference
 # I will remove these variables because the clustering algorithm may be sensitive to the excessive
 # skewness
+
 #Depressed
 depressed.farmers <- dep.dataset.log[og.dataset$depressed==1,]
 plot_num(depressed.farmers)
@@ -82,11 +111,13 @@ str(not_depressed.farmers)
 #Very interestingly, most of the numeric variables follow the same distribution among the
 #depressed groups and non depressed groups - it could suggest these economic variables may not be
 # the strongest indicators of depression afterall. But this can be further examined. The depressed group
-# seem to have a little less education, are a little bit older, have less livestock, less durable assets etc.
-# But only ever so slightly so. I will remove asset_savings, since most people have 0, depressed or not, 
+# seem to have a little less education, are a little bit older (but only very slightly), have less livestock, less durable assets etc.
+# However, those differences are quite slight. I will remove asset_savings, since most people have 0, whether they are depressed or not, 
 # I will also remove, ent_animalstockrev and asset_phone. There are far too many 0s in both depressed
 # And non depressed groups, although non depressed people proportionately speaking, are more likely 
-# to have phones - but this is very slight and the majority don't have phones either
+# to have phones - but this is very slight and the majority who are non depressed still don't have a phone.
+# I don't want to remove too many variables but it is looking like there won't be much insight as there
+# is very marginal difference.
 
 #Remove asset_savings, asset_phone and ent_animalstockrevenue
 dep.dataset.log <- dep.dataset.log[,-c(11,12,20)]
@@ -125,6 +156,9 @@ plot(hc.a)
 # test the internal validity of these number of clusters
 
 library(fpc)
+#Create a fuction to easily take the data related to clusters and output is as a table
+#instead of having to do each one individually everytime
+#Function code based on: Anastasia Reusova Apr 2018-Hierarchical Clustering on Categorical Data in R, TowardsDataScience
 cstats.table <- function(dist, tree, k) {
   clust.assess <- c("cluster.number","n","within.cluster.ss","average.within","average.between",
                     "wb.ratio","dunn","avg.silwidth")
@@ -164,11 +198,10 @@ cstats.table <- function(dist, tree, k) {
   output[is.num] <- lapply(output[is.num], round, 2)
   output
 }
-# I am capping the maximum amount of clusters by 5
-# I want to choose a reasonable number, based on which I will be able to see basic differences between customer groups as a result
+# I am capping the maximum amount of clusters by 5, even though it looks like there may be 3 on the dendograms
+# just to ensure 3 is the best choice
 
-#Optimal solution
-stats.df.aggl <- cstats.table(gower.matrix, hc.w, 5)
+stats.df.aggl <- cstats.table(gower.matrix, hc.w, 5) #chosen solution to analyse
 stats.df.aggl
 
 stats.df.aggl2 <- cstats.table(gower.matrix, hc.w2, 5)
@@ -179,6 +212,8 @@ stats.df.aggl3
 
 stats.df.aggl4 <- cstats.table(gower.matrix, hc.a, 5)
 stats.df.aggl4
+
+#three clusters seems to be the best choice/a good choice in all scenarios
 
 #Table to compare solution 1, 2 and 4 since they are very similar
 # with their dunn, silhouette and within ss values
@@ -199,14 +234,14 @@ table(clust1_label, clust4_label)
 
 #################################################################
 #           B-i   Clustering: PAM
-#################################################################
+############################################################################
+#create a vector to store average silhouette widths - I prefer using it to 
+# select clusters
 
 silhouette.w <- c()
 for(i in 2:20){
   
-  data.pam <- pam(gower.matrix,
-                 diss = TRUE,
-                 k = i)
+  data.pam <- pam(gower.matrix, diss = TRUE, k = i)
   
   silhouette.w[i] <- data.pam$silinfo$avg.width
   
@@ -225,9 +260,8 @@ lines(1:20, silhouette.w)
 #         B-i: Compare to Ward's Cluster Solution
 ###############################################################
 
-pam.3 <- pam(gower.matrix,
-                diss = TRUE,
-                k = 3)
+#pam with 3 clusters
+pam.3 <- pam(gower.matrix, diss = TRUE, k = 3)
 
 table(clust1_label, pam.3$clustering)
 
@@ -243,14 +277,15 @@ randIndex(clust1_label, pam.3$clustering)
 #############################################################################################
 #                 C - Model Based Clustering
 #############################################################################################
-library(mclust)
+library(mclust) #load the library
 fitM <- Mclust(dep.dataset.log)
 
-#It suggests the model EEv with 3 clusters
-
+#It suggests the model EEv with 3 clusters is best using BIC
 fitM
 plot(fitM)
 
+#I will use this result as further
+# evidence for a three cluster solution
 
 ############################################################################################
 #             D - Analyse Hierarchical Clustering Solution
@@ -259,28 +294,34 @@ plot(fitM)
 #I've chosen Hclustering to be the best in this case and will analyse that cluster to see what 
 # insights I can get about depression and different variables
 
+#cluster 1
 h1<- which(clust1_label == 1)
 summary(dep.dataset.log[h1,])
 str(og.dataset[h1,])
-#The amount who are depressed is 65 vs 269 not depressed (24%)
+#The amount who are depressed is 65 vs 269 not depressed (19.46%)
 table(og.dataset[h1,24])
 
+#cluster 2
 h2<- which(clust1_label == 2)
 summary(dep.dataset.log[h2,])
 str(og.dataset[h2,])
-#The amount who are depressed is 52 vs 314 not depressed (16.6%%)
+#The amount who are depressed is 52 vs 314 not depressed (14.21%)
 table(og.dataset[h2,24])
 
+#cluster 3
 h3<- which(clust1_label == 3)
 summary(dep.dataset.log[h3,])
 str(og.dataset[h3,])
-#The amount who are depressed is 42 vs 241 not depressed (20.7%)
+#The amount who are depressed is 42 vs 241 not depressed (17.15%)
 table(og.dataset[h3,24])
 
 #Cluster 1 and 3 have higher levels of depression than the overal average of 16.8%
-# Of the total sample population
+# Of the total sample population. Cluster one seems to consist of people
+# with less income/assets and more children at home. Cluster three seem a little
+# more educated than 2. They spend a little more on education but have higher depression 
+# levels than 2. This will be further explored in the report
 
-#This is an analysis of their differences:
+#analyse numerical variables visually:
 plot_num(dep.dataset.log[h1,])
 plot_num(dep.dataset.log[h2,])
 plot_num(dep.dataset.log[h3,])
@@ -300,6 +341,7 @@ plot_num(dep.dataset.log[h3,])
 # comes to data with high dimensionality. So I will run pam clustering on pca and 
 # compare it to hclust from above to see how it perfoms and also with pam without pca
 
+#Code modified from r help and also: Statistical tools for high-throughput data analysis site (FAMD page)
 #load the necessary packages for pca with mixed variables
 library(FactoMineR)
 library(factoextra)
@@ -307,26 +349,29 @@ library(factoextra)
 str(dep.dataset.log)
 
 # I need to scale the continuous variables
-new.data.log.scale <- lapply(dep.dataset.log[,c(9,10,11,12,13,14,15,16,17,18)], scale)
+new.data.log.scale <- lapply(dep.dataset.log[,c(9:17)], scale)
 str(new.data.log.scale)
 #convert to numeric
 new.data.log.scale <- lapply(new.data.log.scale, as.numeric)
 str(new.data.log.scale)
 
-scaled.data <- cbind(new.data.log.scale, dep.dataset.log[, -c(9,10,11,12,13,14,15,16,17,18)])
+#combine with other variables to make a full dataset that is scaled
+scaled.data <- cbind(new.data.log.scale, dep.dataset.log[, -c(9:17)])
 str(scaled.data)
 
-#now to conduct pca analysis
-data.pca <- FAMD(scaled.data, ncp=9, graph=TRUE)
+#now to conduct pca analysis (will allow for 9 dimensions)
+data.pca <- FAMD(scaled.data, ncp=9, graph=FALSE) #graph set to true will create a pca plot 
 data.pca
 
+#get the eigen values to use for analysis
 eig.val <- get_eigenvalue(data.pca)
 head(eig.val)
 
+#create a scree plot to see how much variance each dim accounts for
 fviz_screeplot(data.pca)
 ?fviz_screeplot()
 
-
+#get the variables
 var <- get_famd_var(data.pca)
 var
 
@@ -337,7 +382,7 @@ head(var$cos2)
 # Contributions to the  dimensions
 head(var$contrib)
 
-#coordinates of indiviuals
+#coordinates of indiviuals for clustering
 ind <- data.pca$ind
 head(ind$coord)
 
@@ -350,8 +395,7 @@ fviz_contrib(data.pca, "var", axes = 1)
 fviz_contrib(data.pca, "var", axes = 2)
 
 
-# Quantitative Variables
-
+# Analysis of Quantitative Variables
 quanti.var <- get_famd_var(data.pca, "quanti.var")
 quanti.var
 
@@ -369,14 +413,14 @@ fviz_famd_var(data.pca, "quanti.var", col.var = "cos2",
 # the rest of the components are also all positively contributed to by the variables.)
 
 #I want to try clustering on PCA data on the new individual coordinates
+#plot the results from the three or four clusters
 pca.pam <- pam(ind$coord, 4)
 plot(ind$coord[,1:2],col=factor(pca.pam$cluster))
 
 pca.pam2 <- pam(ind$coord, 3)
 plot(ind$coord[,1:2],col=factor(pca.pam2$cluster))
 
-
-#Looks like there are three - four clusters here
+#get cluster information
 pca.pam$clusinfo
 pca.pam2$clusinfo
 
@@ -396,7 +440,7 @@ randIndex(clust1_label, pca.pam2$clustering)
 
 #In both cases, even with pca, the results are very, very similar. PAM without PCA is
 # very similar to hclust with gower and ward, and Pam with PCA is very similar to PAM without. 
-# there is not much improvement, but it helps confirm the idea that there are 3 clusters.
+# there is not much improvement or extra insight, but it helps confirm the idea that there are 3 clusters.
 # further analysis shows that one cluster is full of people with no assets or who had 0 as 
 # their answers for those monetary factors. However, through further analysis, conducted 
 # later on in this script using glms, simple models with only education etc (with minimal 0s)
@@ -404,7 +448,7 @@ randIndex(clust1_label, pca.pam2$clustering)
 
 ######################################################################################################################
 
-#         General Linear Models
+## GENERAL LINEAR MODELS
 
 #add the depressed column to the dataset to be used in the analysis
 set.seed(729)
@@ -468,7 +512,7 @@ AIC(step.b) #AIC is 597.542
 BIC(step.b) #BIC is 633.7782
 
 # Only education, asset_durable, cons_allfood, cons_ownfood, cons_ed are statistically
-# significant. ent_farmexpenses was also included. 
+# significant. ent_farmexpenses was also included with backward selection
 
 # I will take three models (logistic regression) and compare them. The first one is with variables selected 
 # bystep.b (it has similar statistically significant variables as output by the logistic regression
@@ -504,23 +548,18 @@ ROCRperf2 = performance(ROCRpred2, "tpr", "fpr")
 ROCRpred3 = prediction(lreg.predict3, train$depressed)
 ROCRperf3 = performance(ROCRpred3, "tpr", "fpr")
 
-# Plot ROC curve
-plot(ROCRperf1)
-plot(ROCRperf1, colorize=TRUE)
+# Plot ROC curves
 plot(ROCRperf1, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
 
-plot(ROCRperf2)
-plot(ROCRperf2, colorize=TRUE)
 plot(ROCRperf2, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
 
-plot(ROCRperf3)
-plot(ROCRperf3, colorize=TRUE)
 plot(ROCRperf3, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
 
 #The first model and last model seem to have a higher AUCs over the second which seems too simplistic and
 # very close to simply random classification in terms of its ROC curve shape
 # Either, way, there won't be high levels of accuracy in any of these models for correctly identifying depression
 
+#Choosing threshold
 #Logically, I believe increasing the amount of true positives is the best approach 
 #It would be more detrimental for someone with depression to go undiagnosed and untreated
 # However, I don't want there to be too many false positives. I will try 0.2, 0.15 and 0.1
@@ -582,7 +621,7 @@ accuracy.m34
 
 # Conclusion: this is not a very good model and in order to get higer levels of
 # true positives, we need to accept more false positives but to an extent that seems
-# quite unreasonable. The has better accuracy at thresholds of 0.5 and higher
+# quite unreasonable. There is better accuracy at thresholds of 0.5 and higher
 # but this is only good for saying that people do not have depression. Otherwise,
 # it typically misclassifies actually depressed people. And that is not the aim of
 # this model. We want to be able to accurately diagnose depressed people
@@ -599,10 +638,15 @@ cont.mat.test2 <- table(test$depressed, lreg.predict1.test2>0.15)
 accuracy.test2 <- (sum(diag(cont.mat.test2))/sum(cont.mat.test2)) 
 accuracy.test2
 
-#Performs poorly on the test dataset as well
+#Performs poorly on the test dataset as well. The first one did not 
+# correctly find positives for depression. The second one does but with
+# far lower accuracy
 
 
 ########################################################################################################
+# GLMS: REGULARISATION WITH LASSO< RIDGE AND ELASTIC NET
+# code modified from lab 7 and related notes
+
 library(glmnet)
 # Lasso, Ridge and Elastic Net: After this I'm going to alter the dataset again
 
@@ -732,6 +776,8 @@ table(class.elastic, test.y)
 
 #None of these models perform well at all. There are
 # far more false negatives than there are true positives
+# elastic net and ridge seem to at least do better than lasso
+# as such there is not much point going ahead with these methods
 
 #Use AIC to check models:
 tLL <- lassomod$nulldev - deviance(lassomod)
@@ -755,3 +801,159 @@ AICce
 #According to AIC ridge performs best (it has the higher accuracy rate)
 # but like the others, it still performs very poorly in correctly 
 # classifying people with depression
+
+
+
+
+########################################################################################################
+## Section: Code Snippets from Other Attempts
+
+
+# Altering the dataset to have less variables and hope by combining
+# income, expenditure variables etc, there may be less skewness and 
+# variables overall
+
+set.seed(7290) # set the seed
+
+#read in the new dataset
+og.data = read.csv("FinalDataset.csv", header=TRUE)
+str(og.data)
+
+#add assets together
+og.data$total_assetsUSD <- og.data$asset_livestock + og.data$asset_durable + og.data$asset_phone + og.data$asset_phone + og.data$asset_savings
+str(og.data) #note land is in acres, not USD
+
+#food consumption - own food consumption will be assumed to be the expenditure on food
+og.data$food_exp <- og.data$cons_allfood - og.data$cons_ownfood
+
+#add expenditure
+og.data$total_expenditureUSD <- og.data$cons_ed + og.data$cons_social + og.data$cons_other + og.data$food_exp
+str(og.data)
+
+#Remove the old variables and non predictor variables
+new.data <- og.data[, -c(1,2,8,9,10,11,13,14,15,16,17,24,26)]
+str(new.data)
+
+#group age into a range
+AgeRange <- c()
+rows <- nrow(new.data)
+
+for(i in 1:rows)
+{
+  age=new.data[i,1]
+  if(age>=29 && age<40)
+  {
+    AgeRange[i]=1
+  }
+  else if(age>=40 && age<50)
+  {
+    AgeRange[i]=2
+  }
+  else if(age>=50 && age<60)
+  {
+    AgeRange[i]=3
+  }
+  else if(age>=60 && age<70)
+  {
+    AgeRange[i]=4
+  }
+  else
+  {
+    AgeRange[i]=5
+  }
+  
+}
+
+new.data <- cbind(new.data, AgeRange)
+new.data <- new.data[, -c(1,9)]
+str(new.data)
+describe(new.data)
+
+
+#Gonna add income to the datatset from old, full dataset: Revenue - Cost
+dep.dat <- read.csv("Full_Data.csv", header=TRUE)
+#replace Nas with 0
+dep.dat[is.na(dep.dat)] <- 0
+
+#Sum revenue:
+dep.dat$totalrevenue <- dep.dat$ent_nonag_revenue + dep.dat$ent_farmrevenue + dep.dat$ent_animalstockrev
+#Less costs
+dep.dat$incomeUSD <- dep.dat$totalrevenue - dep.dat$ent_total_cost
+
+new.data <- cbind(new.data, dep.dat$incomeUSD)
+str(new.data)
+
+#education level
+unique(new.data$edu)
+summary(new.data$edu)
+hist(new.data$edu) #most people have 8 years of education, so primary/secondary
+
+#convert factor variables to type factor
+new.data <- cbind(new.data[, -c(1,2,4,6,7,10,13)],lapply(new.data[, c(1,2,4,6,7,10,13)], as.factor))
+str(new.data)
+
+
+#some income variables are going to be negative, set those to 0
+for(i in 1:nrow(new.data))
+{
+  income <- new.data[i,7]
+  if(income<0)
+  {
+    new.data[i,7] = 0
+  }
+}
+
+str(new.data)
+
+plot_num(new.data)
+skewed_features <- find_skewness(new.data)
+str(new.data[, c(skewed_features)])
+
+#log transform to remove some of the skewness
+new.data.log <- cbind(new.data[,-c(skewed_features)],log((new.data[, c(skewed_features)]) + 1))
+plot_num(new.data.log)
+str(new.data.log)
+
+#remove animal stock rev
+new.data.log <- new.data.log[,-10]
+
+
+
+# The hierarchical clustering, pam and glm code is very similar to the previous section. 
+# There were no noticeable improvements
+
+
+
+# code snippet to have more depressed respondents in training set
+#Split the data into train and test I want a higher proportion of depressed people in the train set
+#after splitting the dataset into dat.depressed (everyone who was depressed) and
+# dat.not_depressed, I tried allocated the data objects in such a way that 
+# more depressed people (than 17% were in the sample)
+
+#gonna put 90% of depressed data into train
+dt = sort(sample(nrow(dat.depressed), nrow(dat.depressed)*.9))
+train<-dat.depressed[dt,]
+test<-dat.depressed[-dt,]
+
+#gonna put 60% of the non depressed data into train
+dt2 = sort(sample(nrow(dat.not_depressed), nrow(dat.not_depressed)*.6))
+train.bind<-dat.not_depressed[dt2,]
+test.bind<-dat.not_depressed[-dt2,]
+
+train <- rbind(train, train.bind)
+test <- rbind(test, test.bind)
+
+str(train)
+str(test)
+
+#shuffle the dataset
+set.seed(42)
+rows <- sample(nrow(train))
+train <- train[rows, ]
+
+table(train$depressed)
+table(test$depressed)
+
+# again the glm code was the same, and it did not improve results that much
+# I also ran the analysis on the full original dataset with 75 variables - the results
+# were no different
