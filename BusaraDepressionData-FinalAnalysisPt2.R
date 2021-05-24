@@ -33,7 +33,7 @@ str(og.data)
 # I'm going to combine all expenditure into one
 
 #assets
-og.data$total_assetsUSD <- og.data$asset_livestock + og.data$asset_durable + og.data$asset_phone + og.data$asset_phone + og.dataset$asset_savings
+og.data$total_assetsUSD <- og.data$asset_livestock + og.data$asset_durable + og.data$asset_phone + og.data$asset_phone + og.data$asset_savings
 str(og.data) #note land is in acres, not USD
 
 #food consumption - own food consumption will be assumed to be the expenditure on food
@@ -88,7 +88,7 @@ summary(new.data$edu)
 hist(new.data$edu) #most people have 8 years of education, so primary/secondary
 
 #convert factor variables to type factor
-new.data <- cbind(new.data[, -c(1,2,4,6,7,11,14)],lapply(new.data[, c(1,2,4,6,7,11,14)], as.factor))
+new.data <- cbind(new.data[, -c(1,2,4,6,7,11,13)],lapply(new.data[, c(1,2,4,6,7,11,13)], as.factor))
 str(new.data)
 
 #look for skewed data
@@ -268,9 +268,6 @@ plot_num(new.data.log[h1.w2,])
 plot_num(new.data.log[h2.w2,])
 plot_num(new.data.log[h3.w2,])
 plot_num(new.data.log[h4.w2,])
-
-
-######################################################################################################################
 ###### GLMs ###########
 #add the depressed column to the dataset to be used in the analysis
 set.seed(729)

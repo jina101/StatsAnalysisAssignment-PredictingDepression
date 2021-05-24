@@ -92,7 +92,6 @@ str(not_depressed.farmers)
 dep.dataset.log <- dep.dataset.log[,-c(11,12,20)]
 str(dep.dataset.log)
 
-
 #################################################################
 #           A-i  Hierarchical Clustering: Gower
 #################################################################
@@ -288,8 +287,125 @@ plot_num(dep.dataset.log[h3,])
 ###############################################################################################
 
 
+######################################################################################################################
+#                     PRINCIPAL COMPONENT ANALYSIS
+######################################################################################################################
 
-###### GLMs ###########
+# PCA: I have an idea as to some of the trends variables have when in groups with
+# high levels vs low levels of depression. I want to see if doing PCA will
+# bring out any further insights. Clustering could be done on the PCA data, however
+# this practice is usually for efficiency purposes with extremely large
+# datasets and since this dataset isn't too big, it is not necessary. I still want to 
+# see if there is any improvement, as distance measures are not great when it 
+# comes to data with high dimensionality. So I will run pam clustering on pca and 
+# compare it to hclust from above to see how it perfoms and also with pam without pca
+
+#load the necessary packages for pca with mixed variables
+library(FactoMineR)
+library(factoextra)
+
+str(dep.dataset.log)
+
+# I need to scale the continuous variables
+new.data.log.scale <- lapply(dep.dataset.log[,c(9,10,11,12,13,14,15,16,17,18)], scale)
+str(new.data.log.scale)
+#convert to numeric
+new.data.log.scale <- lapply(new.data.log.scale, as.numeric)
+str(new.data.log.scale)
+
+scaled.data <- cbind(new.data.log.scale, dep.dataset.log[, -c(9,10,11,12,13,14,15,16,17,18)])
+str(scaled.data)
+
+#now to conduct pca analysis
+data.pca <- FAMD(scaled.data, ncp=9, graph=TRUE)
+data.pca
+
+eig.val <- get_eigenvalue(data.pca)
+head(eig.val)
+
+fviz_screeplot(data.pca)
+?fviz_screeplot()
+
+
+var <- get_famd_var(data.pca)
+var
+
+# Coordinates of variables
+head(var$coord)
+# Cos2: quality of representation on the factore map
+head(var$cos2)
+# Contributions to the  dimensions
+head(var$contrib)
+
+#coordinates of indiviuals
+ind <- data.pca$ind
+head(ind$coord)
+
+
+# Plot of variables
+fviz_famd_var(data.pca, repel = TRUE)
+# Contribution to the first dimension
+fviz_contrib(data.pca, "var", axes = 1)
+# Contribution to the second dimension
+fviz_contrib(data.pca, "var", axes = 2)
+
+
+# Quantitative Variables
+
+quanti.var <- get_famd_var(data.pca, "quanti.var")
+quanti.var
+
+fviz_famd_var(data.pca, "quanti.var", col.var = "contrib", 
+              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+              repel = TRUE)
+
+fviz_famd_var(data.pca, "quanti.var", col.var = "cos2",
+              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+              repel = TRUE)
+
+# A little insight on how the variables are related to eachother, but nothing very new
+# PC1 has a positive contribution from certanin variables (must be the component that
+# determines people who are better off than others - there is no opposing signs. Additionally
+# the rest of the components are also all positively contributed to by the variables.)
+
+#I want to try clustering on PCA data on the new individual coordinates
+pca.pam <- pam(ind$coord, 4)
+plot(ind$coord[,1:2],col=factor(pca.pam$cluster))
+
+pca.pam2 <- pam(ind$coord, 3)
+plot(ind$coord[,1:2],col=factor(pca.pam2$cluster))
+
+
+#Looks like there are three - four clusters here
+pca.pam$clusinfo
+pca.pam2$clusinfo
+
+#compare to pam without pca
+table(pam.3$clustering, pca.pam$clustering) # very similar results
+randIndex(pam.3$clustering, pca.pam$clustering) #very high adjusted rand index
+
+table(pam.3$clustering, pca.pam2$clustering)
+randIndex(pam.3$clustering, pca.pam2$clustering) #very high adjusted rand index
+
+#compare to hierarchical clustering
+table(clust1_label, pca.pam$clustering)
+randIndex(clust1_label, pca.pam$clustering)
+
+table(clust1_label, pca.pam2$clustering)
+randIndex(clust1_label, pca.pam2$clustering)
+
+#In both cases, even with pca, the results are very, very similar. PAM without PCA is
+# very similar to hclust with gower and ward, and Pam with PCA is very similar to PAM without. 
+# there is not much improvement, but it helps confirm the idea that there are 3 clusters.
+# further analysis shows that one cluster is full of people with no assets or who had 0 as 
+# their answers for those monetary factors. However, through further analysis, conducted 
+# later on in this script using glms, simple models with only education etc (with minimal 0s)
+# does not make a good model for classifying depression and is akin to random classification.
+
+######################################################################################################################
+
+#         General Linear Models
+
 #add the depressed column to the dataset to be used in the analysis
 set.seed(729)
 depression.dataset <- cbind(dep.dataset.log, og.dataset$depressed)
@@ -308,6 +424,7 @@ remaining_data<-depression.dataset[-data,]
 data <- sort(sample(nrow(remaining_data), nrow(remaining_data)*.5))
 test<-remaining_data[data,]
 validate<- remaining_data[-data,]
+
 
 ####################################################################################
 #                   GLM 1: FEATURE SELECTION with Transformed Data
